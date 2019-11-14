@@ -1,0 +1,5 @@
+"0","#stops with no boardings and alightings"
+"0","stops_no_ridership<-"
+"0","raw_df %>%"
+"0","  filter(boardings==0 & alightings==0) %>%"
+"0","  select(-c(lat, lon, daytype, month_beginning))"

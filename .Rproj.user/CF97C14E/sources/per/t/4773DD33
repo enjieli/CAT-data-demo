@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1573627792062.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1945575739",
+    "id" : "4773DD33",
+    "lastKnownWriteTime" : 1573628413,
+    "last_content_update" : 1573628413126,
+    "path" : "~/Dropbox/CAMEO/app/app.R",
+    "project_path" : "app/app.R",
+    "properties" : {
+        "cursorPosition" : "58,1",
+        "scrollLine" : "45"
+    },
+    "relative_order" : 5,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

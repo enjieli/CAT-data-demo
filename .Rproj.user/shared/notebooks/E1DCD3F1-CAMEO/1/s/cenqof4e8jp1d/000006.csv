@@ -1,0 +1,33 @@
+"0","rm(list=ls())"
+"0","library(knitr)"
+"0","library(tidyverse)"
+"0","library(stringr)"
+"0","library(sf)"
+"0","library(kableExtra)"
+"0","raw_df<-read_csv(""CTA_-_Ridership_-_Avg._Weekday_Bus_Stop_Boardings_in_October_2012.csv"")"
+"2","Parsed with column specification:
+cols(
+  stop_id = [32mcol_double()[39m,
+  on_street = [31mcol_character()[39m,
+  cross_street = [31mcol_character()[39m,
+  routes = [31mcol_character()[39m,
+  boardings = [32mcol_double()[39m,
+  alightings = [32mcol_double()[39m,
+  month_beginning = [31mcol_character()[39m,
+  daytype = [31mcol_character()[39m,
+  location = [31mcol_character()[39m
+)
+"
+"0","raw_df<- "
+"0","  raw_df %>%"
+"0","  mutate( location= str_replace_all(location, ""[()]"", """")) %>%"
+"0","  separate(location, c(""lat"", ""lon""), sep = "","") %>%"
+"0","  mutate( lat =as.numeric(lat)) %>%"
+"0","  mutate( lon= as.numeric(lon))"
+"0","#What is the route with the most stops?"
+"0","routes <- "
+"0","  raw_df %>%"
+"0","  separate_rows(routes) %>%"
+"0","  group_by(routes) %>%"
+"0","  summarise(Number_of_routes=n_distinct(stop_id)) %>%"
+"0","  arrange(desc(Number_of_routes))"

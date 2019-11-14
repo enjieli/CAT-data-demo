@@ -1,0 +1,117 @@
+rm(list=ls())
+library(tidyverse)
+library(stringr)
+library(sf)
+
+raw_df<-read_csv("CTA_-_Ridership_-_Avg._Weekday_Bus_Stop_Boardings_in_October_2012.csv")
+
+#check unique value of weekday and month_beginning
+unique(raw_df$daytype)
+unique(raw_df$month_beginning)
+
+#check unique value of stop_id
+n_distinct(raw_df$stop_id)
+
+raw_df<- 
+  raw_df %>%
+  mutate( location= str_replace_all(location, "[()]", "")) %>%
+  separate(location, c("lat", "lon"), sep = ",") %>%
+  mutate( lat =as.numeric(lat)) %>%
+  mutate( lon= as.numeric(lon))
+
+
+#What is the route with the most stops?
+
+raw_df %>%
+  separate_rows(routes) %>%
+  group_by(routes) %>%
+  summarise(n=n_distinct(stop_id)) %>%
+  arrange(desc(n))
+
+
+#What is the stop with the most routes?
+str(df_sp)
+stops<- 
+  raw_df %>%
+  mutate(n_route = str_count(routes, "\\d+")) %>%
+  arrange(desc(n_route)) %>%
+  top_n(10)
+
+
+#stops with no boardings and alightings
+stops_no_ridership<-
+raw_df %>%
+  filter(boardings==0 & alightings==0)
+
+
+#transform to spatial dataframe
+library(RColorBrewer)
+library(ggmap)
+df_sp <- 
+  st_as_sf(raw_df, coords = c("lon", "lat"), crs = 4326) %>%
+  select(-c('month_beginning','daytype'))
+
+st_bbox(df_sp)
+
+chi_bb <- c(left = -87.88430,
+            bottom = 41.64416,
+            right = -87.52570,
+            top = 42.06470)
+
+chicago_stamen <- get_stamenmap(bbox = chi_bb, zoom = 11, maptype = 'toner-lite')
+ggmap(chicago_stamen)
+
+ggmap(chicago_stamen)+ 
+  geom_sf(data = df_sp, inherit.aes = FALSE,
+          aes(color = boardings),
+          size = 0.5, alpha=0.6,show.legend = 'point') +
+  coord_sf(crs = st_crs(df_sp)) +
+  scale_colour_viridis_c(option = "plasma", trans="log")
+
+
+ggmap(chicago_stamen)+ 
+  geom_sf(data = df_sp, inherit.aes = FALSE,
+          aes(color = alightings),
+          size = 0.5, alpha=0.6,show.legend = 'point') +
+  coord_sf(crs = st_crs(df_sp)) +
+  scale_colour_viridis_c(option = "plasma",trans="log")
+
+
+ggmap(chicago_stamen)+ 
+  stat_density_2d(data = raw_df,
+                  aes(x = lon,
+                          y = lat, fill = stat(level)),
+                  alpha = .4,
+                  bins = 25,
+                  geom = "polygon") +
+  scale_fill_gradientn('number of stops',colors = brewer.pal(6, "YlOrRd")) +
+  geom_sf(data = df_sp, inherit.aes = FALSE,color='black',
+          size = 0.2, alpha=0.1,show.legend = 'point') +
+  coord_sf(crs = st_crs(df_sp)) 
+
+
+
+
+
+
+#####
+
+stops_route <- 
+  raw_df %>%
+  mutate(number_of_routes = str_count(routes, "\\d+")) %>%
+  separate_rows(routes) %>%
+  mutate( boardings = boardings/number_of_routes) %>%
+  mutate(alightings =  alightings/ number_of_routes)  %>%
+  select( -c(number_of_routes,daytype,month_beginning)) %>%
+  gather("boardings", "alightings", key = type, value = ridership)
+
+
+stops_route_sp <- 
+  st_as_sf(stops_route, coords = c("lon", "lat"), crs = 4326) 
+
+save(stops_route_sp, file="stops_route_sp.rda")
+
+
+
+  
+

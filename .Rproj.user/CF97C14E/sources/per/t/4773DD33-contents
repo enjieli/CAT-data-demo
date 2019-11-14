@@ -1,0 +1,79 @@
+rm(list=ls())
+library(leaflet)
+library(sf)
+library(tidyverse)
+library(shiny)
+library(ggmap)
+library(classInt)
+library(RColorBrewer)
+
+load("app/stops_route_sp.rda")
+
+#######################################
+#######################################
+#######################################
+#######################################
+
+server <- function(input, output) {
+  
+ 
+  filteredData <- reactive({
+    stops_route_sp %>% 
+      filter(type == input$type) %>%
+      filter (routes %in% input$route)
+  })
+  
+  
+  output$map <- renderLeaflet({
+    
+    leaflet() %>%
+      setView( lng=-87.705, lat=41.85443,zoom=12) %>%
+      addProviderTiles(providers$Stamen.Toner,group="Stamen Toner") %>%
+      addProviderTiles(providers$OpenStreetMap.Mapnik,group="Open Street Map") %>%
+      addLayersControl(baseGroups = c("Stamen Toner", "Open Street Map")) 
+     
+  })
+  
+  
+  observe({
+    pal <- 
+      colorFactor(palette = c("blue", "red"), 
+                  levels = c("Rascals", "VertNet"))
+    
+    leafletProxy("map", data = filteredData()) %>% 
+      clearMarkers() %>%
+      clearControls() %>%
+      addCircleMarkers( color = ~pal(routes),
+                        radius = 3)
+      
+  })
+
+  
+   output$barplot <- renderPlot({
+     
+    
+   
+})
+
+
+}
+
+ui <- fluidPage(
+  titlePanel("CAT Average Weekday Bus Ridership"),
+  sidebarLayout(
+    sidebarPanel(selectInput("route", label = "Choose a route:",
+                             choices = sort(unique((stops_route$routes))),
+                             multiple = TRUE),
+                 selectInput("type", label = "Type of ridership:",
+                             choices = c('boardings','alightings'), selected = 'boardings'),
+                  plotOutput(outputId = "barplot", height="120px"),
+                  br(),
+                  h6("Ridership Map")),
+    mainPanel(leafletOutput("map",  width="100%",height="600px"))
+                  ))
+
+shinyApp(ui = ui, server = server)
+
+
+
+

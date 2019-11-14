@@ -1,0 +1,342 @@
+---
+title: "CAMEO Demo"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Summary
+1. The route with the most stops is Route 9 with 273 stops.
+2. The stop with the most routes is stop_id 1106 at MICHIGAN & WASHINGTON. It    has 14 routes.
+3. There are 40 stops from 18 distinct routes that had no ridership at all       during the whole month of October, 2012. Further monitoring is needed to      determin whether to reduce the services/stopping during weekdays at those     stops.
+4. Identified top 10 routes that had the most boardings and alightings among     154 unique routes, futher info is need to decide whether to increase          service to improve rider experience and reduce crowding. 
+5. Routes segmentation based on ridership.
+6. Developed a visualization dashboard to identify stops with inbanalced         boardings and alightings and stops with the most ridership.
+
+
+
+
+### Next Step
+
+1. Link stops with route info for route optimization.
+2. Collecting ridership info for each individual route at each stop to get       better info to improve rider experience and operation efficiency. 
+3. Collect time specific ridership info for scheduling optimization.
+4. Data enrichment with land use type, and census info to improve access.
+
+
+</div>
+<div style="margin-top:50px;">
+### *Supporting Materials*
+<div style="margin-bottom:20px;">
+</div>
+
+```{r echo = FALSE, include=FALSE}
+rm(list=ls())
+library(knitr)
+library(tidyverse)
+library(stringr)
+library(sf)
+library(kableExtra)
+library(ggmap)
+library(RColorBrewer)
+library(shiny)
+library(viridis)
+library(leaflet)
+
+
+raw_df<- read_csv("CTA_-_Ridership_-_Avg._Weekday_Bus_Stop_Boardings_in_October_2012.csv")
+
+#clean raw_df 
+raw_df<- 
+  raw_df %>%
+  mutate( location= str_replace_all(location, "[()]", "")) %>%
+  separate(location, c("lat", "lon"), sep = ",") %>%
+  mutate( lat =as.numeric(lat)) %>%
+  mutate( lon= as.numeric(lon))
+```
+
+
+```{r echo = FALSE, include=FALSE}
+#What is the route with the most stops?
+routes <- 
+  raw_df %>%
+  separate_rows(routes) %>%
+  group_by(routes) %>%
+  summarise(Number_of_stops=n_distinct(stop_id)) %>%
+  arrange(desc(Number_of_stops))
+```
+</div>
+<div style="margin-top:50px;">
+##### Table 1 Routes with most stops
+<div style="margin-bottom:20px;">
+</div>
+```{r echo = FALSE, results = 'asis'}
+kable(routes[1:10, ],  booktabs = T) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+```{r echo = FALSE, include=FALSE}
+
+#What is the stop with the most routes?
+stops <- 
+  raw_df %>%
+  mutate(number_of_routes = str_count(routes, "\\d+")) %>%
+  arrange(desc(number_of_routes)) %>%
+  select(stop_id,on_street, cross_street, routes, number_of_routes)
+```
+</div>
+<div style="margin-top:100px;">
+##### Table 2 Stops with the most routes
+<div style="margin-bottom:20px;">
+</div>
+```{r echo = FALSE}
+kable(stops[1:10, ], booktabs = T) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+```{r chicago_basemap, echo = FALSE, include=FALSE}
+#get chicago basemap 
+chi_bb <- c(left = -87.88430,
+            bottom = 41.64416,
+            right = -87.52570,
+            top = 42.06470)
+
+chicago_stamen <- get_stamenmap(bbox = chi_bb, zoom = 11, maptype = 'toner-lite')
+ggmap(chicago_stamen)
+```
+
+
+```{r stops density map, echo=FALSE, include=FALSE}
+df_sp <- 
+  st_as_sf(raw_df, coords = c("lon", "lat"), crs = 4326) %>%
+  select(-c('month_beginning','daytype'))
+
+stops_density_map <- 
+  ggmap(chicago_stamen)+ 
+  stat_density_2d(data = raw_df,
+                  aes(x = lon, y = lat, fill = stat(level)),
+                  alpha = .4,
+                  bins = 5,
+                  geom = "polygon") +
+  scale_fill_gradientn('number of stops',colors = brewer.pal(5, "YlOrRd")) +
+  geom_sf(data = df_sp, inherit.aes = FALSE,color='black',
+          size = 0.2, alpha=0.1,show.legend = 'point') 
+
+```
+</div>
+<div style="margin-top:100px;">
+##### Figure 1 Stop Density Map
+<div style="margin-bottom:20px;">
+</div>
+```{r echo = FALSE, warning=FALSE, out.width = "500%"}
+stops_density_map
+```
+
+
+```{r stop_route_long, echo = FALSE, include= FALSE}
+
+stops_route <- 
+  raw_df %>%
+  mutate(number_of_routes = str_count(routes, "\\d+")) %>%
+  separate_rows(routes) %>%
+  mutate( boardings = boardings/number_of_routes) %>%
+  mutate(alightings =  alightings/ number_of_routes)  %>%
+  select( -c(number_of_routes,daytype,month_beginning)) %>%
+  gather("boardings", "alightings", key = type, value = ridership)
+  
+stops_route_sp <- 
+  st_as_sf(stops_route, coords = c("lon", "lat"), crs = 4326) 
+
+```
+
+
+```{r stops_with_no_ridership, echo = FALSE, include=FALSE}
+#stops with no boardings and alightings
+#transform stops_no_ridership to spatial dataframe
+
+stops_no_ridership_sp <-
+  stops_route_sp %>%
+  filter (ridership==0) %>%
+  group_by(stop_id, routes) %>%
+  filter(n()>1)
+
+n_distinct(stops_no_ridership_sp$stop_id)
+n_distinct(stops_no_ridership_sp$routes)
+```
+
+
+</div>
+<div style="margin-top:100px;">
+##### Figure 2 Map of stops with no ridership
+<div style="margin-bottom:20px;">
+</div>
+```{r echo = FALSE, warning=FALSE}
+
+pal <- colorFactor(palette = 'Spectral', domain =stops_no_ridership_sp$routes)
+    
+leaflet(stops_no_ridership_sp) %>%
+  setView(lng=-87.705, lat=41.85443, zoom = 10) %>% 
+  addProviderTiles(providers$Stamen.Toner,group="Stamen Toner") %>%
+  addCircleMarkers( color = ~pal(routes),
+                        radius = ~ ifelse(ridership <=100, 6,
+                                           ifelse((ridership <=1000),10,15)),
+                        stroke = FALSE, 
+                        fillOpacity = 0.8,
+                        popup = ~paste("Stop_id:", stop_id, 
+                          "<br>", "Route:", routes, 
+                          "<br>", "Ridership:", ridership)) %>%
+      addLegend("topright", pal = pal, opacity = 1,
+                values = ~routes, 
+                title = "Routes")
+```
+
+
+
+```{r echo = FALSE, include= FALSE}
+#there are 2 routes that have NA info. 
+#routes by boarding and alighting ridership 
+ridership_by_routes<- 
+  stops_route %>%
+  filter(!is.na(routes)) %>%
+  group_by(routes, type) %>%
+  summarise(n=sum(ridership)) %>%
+  spread(type, n) %>%
+  mutate(total =boardings+ alightings) %>%
+  arrange(desc(total))
+```
+
+</div>
+<div style="margin-top:100px;">
+##### Table 3  Top 10 most trafficked routes  
+<div style="margin-bottom:20px;">
+</div>
+```{r echo = FALSE}
+kable(ridership_by_routes[1:10, ], booktabs = T) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+```
+
+
+
+```{r kmeans df setup,  echo = FALSE, include= FALSE}
+#reshape df with only lat, lon, boardings, and alights columns
+#scale the dataset
+
+km_df_scale<- 
+  raw_df%>%
+  select(stop_id,boardings,alightings) %>%
+  column_to_rownames(var="stop_id") %>%
+  scale()
+```
+
+```{r determin_k,  echo = FALSE,include= FALSE, warning=FALSE}
+library(factoextra)
+set.seed(123)
+# function to compute total within-cluster sum of square 
+wss <- function(k) {
+  kmeans(km_df_scale, k,iter.max = 100, nstart = 25 )$tot.withinss
+}
+
+# Compute and plot wss for k = 1 to k = 15
+k.values <- 1:15
+
+# extract wss for 2-15 clusters
+wss_values <- map_dbl(k.values, wss)
+
+plot(k.values, wss_values,
+       type="b", pch = 19, frame = FALSE, 
+       xlab="Number of clusters K",
+       ylab="Total within-clusters sum of squares")
+```       
+```{r kmeans,  echo = FALSE, include= FALSE, warning=FALSE}
+set.seed(123)
+km.res <- kmeans(km_df_scale, 3, iter.max = 100, nstart = 25)
+print(km.res)
+dd <- cbind(raw_df, cluster = km.res$cluster)
+head(dd)    
+```
+
+
+```{r echo = FALSE, warning=FALSE}
+dd %>%
+  ggplot(aes(x=boardings, y= alightings, color= factor(cluster))) +
+  geom_point() +
+  geom_abline(aes(intercept = 0 , slope= 1 ), linetype= "dashed") + 
+  scale_x_continuous(trans = 'log') +
+  scale_y_continuous(trans = 'log') +
+  scale_size(range = c(0.5, 5))  +
+  scale_color_brewer("", palette = "Set1", 
+                     labels = c("Stops with little ridership", 
+                                "Stops with most ridership", 
+                                "Stops with medium ridership")) +
+  theme_bw() +
+  xlab("Boardings") +
+  ylab("Alightings") 
+```
+</div>
+<div style="margin-top:100px;">
+##### Figure 3 Stops segmentation based on Ridership
+<div style="margin-bottom:20px;">
+</div>
+
+
+```{r echo = FALSE, warning=FALSE}
+m = leaflet() %>%
+    setView(lng=-87.705, lat=41.85443, zoom = 10) %>% 
+    addProviderTiles(providers$Stamen.Toner,group="Stamen Toner") 
+
+# subset into clusters 
+data_filterlist = list(cluster_1 = subset(dd, cluster == 1),
+                cluster_2 = subset(dd, cluster == 2),
+                cluster_3 = subset(dd, cluster == 3))
+
+# Remember we also had these groups associated with each variable? Let's put them in a list too:
+layerlist = c("Stops with little ridership", "Stops with most ridership", "Stops with medium ridership")
+
+# We can keep that same color variable:
+colorFactors = colorFactor(c('red', 'blue', 'seagreen'), domain=dd$cluster)
+
+# Now we have our loop - each time through the loop, it is adding our markers to the map object:
+
+for (i in 1:length(data_filterlist)){
+  m = addCircleMarkers(m, 
+                       lng=data_filterlist[[i]]$lon, 
+                       lat=data_filterlist[[i]]$lat, 
+                       radius=5,
+                       popup= paste( "Stop_id:",data_filterlist[[i]]$stop_id,  
+                                     "<br>", "Routes:", data_filterlist[[i]]$routes,
+                                     "<br>", "Boardings:",data_filterlist[[i]]$boardings,
+                                     "<br>", "Alightings:",data_filterlist[[i]]$alightings),
+                       stroke = FALSE, fillOpacity = 0.75,
+                       color = colorFactors(data_filterlist[[i]]$cluster),
+                       group = layerlist[i]
+  )
+
+}
+
+
+m = addLayersControl(m, overlayGroups = layerlist, options = layersControlOptions(collapsed = FALSE))
+
+m
+```
+
+
+
+```{r echo = FALSE, warning=FALSE}
+dd %>%
+  ggplot(aes(x=boardings, y= alightings, color= factor(cluster))) +
+  geom_point() +
+  geom_abline(aes(intercept = 0 , slope= 1 ), linetype= "dashed") + 
+  scale_x_continuous(trans = 'log') +
+  scale_y_continuous(trans = 'log') +
+  scale_size(range = c(0.5, 5))  +
+    scale_color_brewer( palette = "Set1") +
+  theme_bw() +
+  xlab("Boardings") +
+  ylab("Alightings") 
+```
+
+
+

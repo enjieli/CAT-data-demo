@@ -1,0 +1,6 @@
+"0","#What is the stop with the most routes?"
+"0","stops <- "
+"0","  raw_df %>%"
+"0","  mutate(number_of_routes = str_count(routes, ""\\d+"")) %>%"
+"0","  arrange(desc(number_of_routes)) %>%"
+"0","  select(stop_id,on_street, cross_street, routes, number_of_routes)"

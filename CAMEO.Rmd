@@ -1,5 +1,10 @@
 ---
 title: "CAMEO Demo"
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 output: html_document
 runtime: shiny
 ---
@@ -322,21 +327,6 @@ m = addLayersControl(m, overlayGroups = layerlist, options = layersControlOption
 m
 ```
 
-
-
-```{r echo = FALSE, warning=FALSE}
-dd %>%
-  ggplot(aes(x=boardings, y= alightings, color= factor(cluster))) +
-  geom_point() +
-  geom_abline(aes(intercept = 0 , slope= 1 ), linetype= "dashed") + 
-  scale_x_continuous(trans = 'log') +
-  scale_y_continuous(trans = 'log') +
-  scale_size(range = c(0.5, 5))  +
-    scale_color_brewer( palette = "Set1") +
-  theme_bw() +
-  xlab("Boardings") +
-  ylab("Alightings") 
-```
 
 
 
